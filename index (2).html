@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CyberGuard – Databáze hrozeb</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0d12;
+    --surface: #0f141c;
+    --surface2: #161d28;
+    --border: #1e2d3d;
+    --accent: #00d4ff;
+    --accent2: #ff3d71;
+    --accent3: #00ff94;
+    --text: #c8dce8;
+    --text-muted: #4a6278;
+    --text-dim: #2a3d50;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Rajdhani', sans-serif;
+    --danger: #ff3d71;
+    --warning: #ffaa00;
+    --success: #00ff94;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,212,255,0.015) 2px, rgba(0,212,255,0.015) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 18px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 28px; height: 28px;
+    border: 1.5px solid var(--accent);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    animation: pulse-border 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-border {
+    0%,100% { box-shadow: 0 0 6px rgba(0,212,255,0.3); }
+    50%      { box-shadow: 0 0 16px rgba(0,212,255,0.7); }
+  }
+
+  .header-stats {
+    display: flex; gap: 20px;
+    font-family: var(--mono); font-size: 11px; color: var(--text-muted);
+  }
+
+  .stat-pill { display: flex; align-items: center; gap: 6px; }
+
+  .stat-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    animation: blink 1.5s ease-in-out infinite;
+  }
+  .stat-dot.red    { background: var(--danger); }
+  .stat-dot.yellow { background: var(--warning); }
+  .stat-dot.green  { background: var(--success); }
+
+  @keyframes blink {
+    0%,100% { opacity:1; } 50% { opacity:0.3; }
+  }
+
+  .main {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    min-height: calc(100vh - 61px);
+  }
+
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+
+  .panel-title {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent); letter-spacing: 3px; text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel-title::after {
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(to right, var(--border), transparent);
+  }
+
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+
+  label {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase;
+  }
+
+  input, select, textarea {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono); font-size: 13px;
+    padding: 10px 14px; border-radius: 4px;
+    outline: none; width: 100%;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(0,212,255,0.2), inset 0 0 20px rgba(0,212,255,0.03);
+  }
+  select option { background: var(--surface2); }
+  textarea { resize: vertical; min-height: 72px; line-height: 1.5; font-family: var(--sans); font-size: 14px; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .btn {
+    font-family: var(--mono); font-size: 12px;
+    letter-spacing: 2px; text-transform: uppercase;
+    padding: 10px 20px; border: 1px solid; border-radius: 4px;
+    cursor: pointer; transition: all 0.15s;
+    position: relative; overflow: hidden; background: transparent;
+  }
+  .btn:active { transform: scale(0.98); }
+
+  .btn-primary  { border-color: var(--accent);   color: var(--accent);   width: 100%; }
+  .btn-primary:hover  { box-shadow: 0 0 20px rgba(0,212,255,0.25); }
+  .btn-edit     { border-color: var(--warning);  color: var(--warning);  padding: 6px 12px; font-size: 11px; }
+  .btn-delete   { border-color: var(--danger);   color: var(--danger);   padding: 6px 12px; font-size: 11px; }
+  .btn-cancel   { border-color: var(--text-muted); color: var(--text-muted); flex: 1; }
+  .btn-save     { border-color: var(--success);  color: var(--success);  flex: 1; }
+  .btn-row      { display: flex; gap: 10px; }
+
+  .edit-indicator {
+    background: rgba(255,170,0,0.08);
+    border: 1px solid rgba(255,170,0,0.2);
+    border-radius: 4px; padding: 10px 14px;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--warning); letter-spacing: 1px;
+  }
+
+  .content {
+    padding: 24px 28px;
+    display: flex; flex-direction: column; gap: 20px;
+    background: var(--bg);
+  }
+
+  .toolbar { display: flex; align-items: center; gap: 12px; }
+
+  .search-wrap { position: relative; flex: 1; max-width: 320px; }
+  .search-wrap input { padding-left: 36px; }
+  .search-icon {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    font-size: 14px; color: var(--text-muted); pointer-events: none;
+  }
+
+  .filter-select { width: 160px; }
+  .count-badge { font-family: var(--mono); font-size: 11px; color: var(--text-muted); margin-left: auto; }
+
+  .threats-grid { display: flex; flex-direction: column; gap: 10px; }
+
+  .threat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 16px 20px;
+    display: grid; grid-template-columns: auto 1fr auto;
+    gap: 16px; align-items: center;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    position: relative; overflow: hidden;
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn {
+    from { opacity:0; transform: translateY(-8px); }
+    to   { opacity:1; transform: translateY(0); }
+  }
+  .threat-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  }
+  .threat-card.sev-critical::before { background: var(--danger); }
+  .threat-card.sev-high::before     { background: var(--warning); }
+  .threat-card.sev-medium::before   { background: #00aaff; }
+  .threat-card.sev-low::before      { background: var(--success); }
+  .threat-card:hover { border-color: rgba(0,212,255,0.3); box-shadow: 0 0 20px rgba(0,212,255,0.06); }
+
+  .sev-badge {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 1.5px; padding: 4px 10px;
+    border-radius: 3px; font-weight: 600; white-space: nowrap;
+  }
+  .sev-KRITICKÁ { background: rgba(255,61,113,0.15); color: #ff6e8e; border: 1px solid rgba(255,61,113,0.3); }
+  .sev-VYSOKÁ   { background: rgba(255,170,0,0.12);  color: #ffc533; border: 1px solid rgba(255,170,0,0.3); }
+  .sev-STŘEDNÍ  { background: rgba(0,170,255,0.1);   color: #33bbff; border: 1px solid rgba(0,170,255,0.25); }
+  .sev-NÍZKÁ    { background: rgba(0,255,148,0.08);  color: #33ffb0; border: 1px solid rgba(0,255,148,0.2); }
+
+  .threat-info { min-width: 0; }
+  .threat-name {
+    font-family: var(--sans); font-size: 15px; font-weight: 600;
+    color: #e8f4ff; margin-bottom: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .threat-meta {
+    display: flex; gap: 16px;
+    font-family: var(--mono); font-size: 11px; color: var(--text-muted);
+  }
+  .threat-desc {
+    font-size: 12px; color: var(--text-muted); margin-top: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 400px;
+  }
+  .card-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  .empty {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 12px; padding: 60px;
+    color: var(--text-dim); font-family: var(--mono);
+    font-size: 12px; letter-spacing: 2px; text-align: center;
+  }
+  .empty-icon { font-size: 36px; opacity: 0.3; }
+
+  .loading {
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px; padding: 40px;
+    font-family: var(--mono); font-size: 12px; color: var(--text-muted);
+    letter-spacing: 2px;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    z-index: 1000; display: flex; align-items: center; justify-content: center;
+    animation: fadeIn 0.15s ease;
+  }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 28px; width: 480px;
+    display: flex; flex-direction: column; gap: 18px;
+    box-shadow: 0 0 60px rgba(0,212,255,0.1);
+  }
+  .modal-title { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 2px; }
+
+  .hidden { display: none !important; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 28px; right: 28px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+    padding: 12px 20px; border-radius: 4px; z-index: 9999;
+    animation: slideIn 0.2s ease;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+  }
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity:0; }
+    to   { transform: translateX(0);   opacity:1; }
+  }
+  .toast.success { border-left-color: var(--success); }
+  .toast.error   { border-left-color: var(--danger);  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">⚠</div>
+    CYBERGUARD // THREAT DB
+  </div>
+  <div class="header-stats">
+    <div class="stat-pill"><div class="stat-dot red"></div><span id="stat-critical">0 KRITICKÉ</span></div>
+    <div class="stat-pill"><div class="stat-dot yellow"></div><span id="stat-high">0 VYSOKÉ</span></div>
+    <div class="stat-pill"><div class="stat-dot green"></div><span id="stat-total">0 CELKEM</span></div>
+  </div>
+</div>
+
+<div class="main">
+  <!-- SIDEBAR: formulář -->
+  <div class="sidebar">
+    <div class="panel-title">Nová hrozba</div>
+
+    <div id="edit-indicator" class="edit-indicator hidden">
+      ✎ EDITAČNÍ MÓD – upravujete existující záznam
+    </div>
+
+    <div class="form-group">
+      <label>Název hrozby</label>
+      <input id="f-name" type="text" placeholder="např. SQL Injection">
+    </div>
+
+    <div class="two-col">
+      <div class="form-group">
+        <label>Závažnost</label>
+        <select id="f-severity">
+          <option value="KRITICKÁ">Kritická</option>
+          <option value="VYSOKÁ">Vysoká</option>
+          <option value="STŘEDNÍ" selected>Střední</option>
+          <option value="NÍZKÁ">Nízká</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Typ útoku</label>
+        <select id="f-type">
+          <option value="Malware">Malware</option>
+          <option value="Phishing">Phishing</option>
+          <option value="DoS/DDoS">DoS/DDoS</option>
+          <option value="Injection">Injection</option>
+          <option value="Ransomware">Ransomware</option>
+          <option value="MITM">MITM</option>
+          <option value="Jiný">Jiný</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Popis</label>
+      <textarea id="f-desc" placeholder="Popis hrozby a způsob útoku..."></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Postižený systém</label>
+      <input id="f-system" type="text" placeholder="např. Webový server, DB, API">
+    </div>
+
+    <div class="two-col">
+      <div class="form-group">
+        <label>Stav</label>
+        <select id="f-status">
+          <option value="Aktivní">Aktivní</option>
+          <option value="Vyšetřování">Vyšetřování</option>
+          <option value="Vyřešena">Vyřešena</option>
+          <option value="Ignorována">Ignorována</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>CVE / ID</label>
+        <input id="f-cve" type="text" placeholder="CVE-2024-XXXX">
+      </div>
+    </div>
+
+    <div id="form-buttons-create">
+      <button class="btn btn-primary" onclick="saveThreat()">+ PŘIDAT HROZBU</button>
+    </div>
+    <div id="form-buttons-edit" class="btn-row hidden">
+      <button class="btn btn-cancel" onclick="cancelEdit()">ZRUŠIT</button>
+      <button class="btn btn-save" onclick="updateThreat()">ULOŽIT ZMĚNY</button>
+    </div>
+  </div>
+
+  <!-- MAIN: seznam -->
+  <div class="content">
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="search-input" placeholder="Hledat hrozbu..." oninput="renderList()">
+      </div>
+      <select class="filter-select" id="filter-severity" onchange="renderList()">
+        <option value="">Všechny závažnosti</option>
+        <option value="KRITICKÁ">Kritická</option>
+        <option value="VYSOKÁ">Vysoká</option>
+        <option value="STŘEDNÍ">Střední</option>
+        <option value="NÍZKÁ">Nízká</option>
+      </select>
+      <select class="filter-select" id="filter-status" onchange="renderList()">
+        <option value="">Všechny stavy</option>
+        <option value="Aktivní">Aktivní</option>
+        <option value="Vyšetřování">Vyšetřování</option>
+        <option value="Vyřešena">Vyřešena</option>
+        <option value="Ignorována">Ignorována</option>
+      </select>
+      <span class="count-badge" id="count-label">načítání...</span>
+    </div>
+
+    <div class="threats-grid" id="threats-list">
+      <div class="loading">⬡ &nbsp; PŘIPOJOVÁNÍ K DATABÁZI...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Potvrzení smazání -->
+<div class="modal-overlay hidden" id="delete-modal">
+  <div class="modal">
+    <div class="modal-title">// POTVRDIT SMAZÁNÍ</div>
+    <div style="font-size:14px;color:var(--text-muted);line-height:1.6">
+      Opravdu chcete smazat hrozbu <strong id="delete-name" style="color:var(--danger)"></strong>?<br>
+      Tato akce je nevratná.
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-cancel" onclick="closeDeleteModal()">ZRUŠIT</button>
+      <button class="btn btn-delete" onclick="confirmDelete()">SMAZAT</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Supabase init ──────────────────────────────────────────────
+  const { createClient } = supabase;
+  const sb = createClient(
+    'https://mpdwafarclkjstbtebit.supabase.co',
+    'sb_publishable_5Ip5XX8D-mFZNf6sldeBAA_LiEqyBlX'
+  );
+
+  let threats = [];
+  let editId  = null;
+  let deleteId = null;
+
+  // ── Načtení dat ────────────────────────────────────────────────
+  async function loadData() {
+    const { data, error } = await sb
+      .from('threats')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      showToast('Chyba připojení k databázi', 'error');
+      console.error(error);
+      return;
+    }
+    threats = data || [];
+    renderList();
+    updateStats();
+  }
+
+  // ── CREATE ─────────────────────────────────────────────────────
+  async function saveThreat() {
+    const name = document.getElementById('f-name').value.trim();
+    if (!name) { showToast('Vyplňte název hrozby', 'error'); return; }
+
+    const { error } = await sb.from('threats').insert({
+      name,
+      severity:    document.getElementById('f-severity').value,
+      type:        document.getElementById('f-type').value,
+      description: document.getElementById('f-desc').value.trim(),
+      system:      document.getElementById('f-system').value.trim(),
+      status:      document.getElementById('f-status').value,
+      cve:         document.getElementById('f-cve').value.trim()
+    });
+
+    if (error) { showToast('Chyba při ukládání', 'error'); console.error(error); return; }
+    showToast('Hrozba přidána do databáze', 'success');
+    resetForm();
+    await loadData();
+  }
+
+  // ── READ (render) ──────────────────────────────────────────────
+  function renderList() {
+    const search      = document.getElementById('search-input').value.toLowerCase();
+    const filterSev   = document.getElementById('filter-severity').value;
+    const filterStat  = document.getElementById('filter-status').value;
+
+    const filtered = threats.filter(t => {
+      const matchSearch = !search ||
+        t.name.toLowerCase().includes(search) ||
+        (t.description && t.description.toLowerCase().includes(search)) ||
+        (t.cve && t.cve.toLowerCase().includes(search));
+      const matchSev  = !filterSev  || t.severity === filterSev;
+      const matchStat = !filterStat || t.status   === filterStat;
+      return matchSearch && matchSev && matchStat;
+    });
+
+    document.getElementById('count-label').textContent = filtered.length + ' záznamů';
+    const container = document.getElementById('threats-list');
+
+    if (filtered.length === 0) {
+      container.innerHTML = `<div class="empty"><div class="empty-icon">⬡</div><div>ŽÁDNÉ ZÁZNAMY NENALEZENY</div><div style="color:var(--text-dim);font-size:10px;margin-top:4px">Databáze hrozeb je prázdná</div></div>`;
+      return;
+    }
+
+    const sevClass = { 'KRITICKÁ':'sev-critical','VYSOKÁ':'sev-high','STŘEDNÍ':'sev-medium','NÍZKÁ':'sev-low' };
+
+    container.innerHTML = filtered.map(t => {
+      const date = new Date(t.created_at).toLocaleDateString('cs-CZ');
+      return `
+      <div class="threat-card ${sevClass[t.severity]||''}">
+        <div class="sev-badge sev-${t.severity}">${t.severity}</div>
+        <div class="threat-info">
+          <div class="threat-name">${esc(t.name)}</div>
+          <div class="threat-meta">
+            <span>${t.type}</span>
+            <span>${t.status}</span>
+            ${t.system ? `<span>${esc(t.system)}</span>` : ''}
+            ${t.cve    ? `<span style="color:var(--accent)">${esc(t.cve)}</span>` : ''}
+            <span>${date}</span>
+          </div>
+          ${t.description ? `<div class="threat-desc">${esc(t.description)}</div>` : ''}
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-edit"   onclick="editThreat('${t.id}')">EDIT</button>
+          <button class="btn btn-delete" onclick="deleteThreat('${t.id}')">DEL</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── UPDATE ─────────────────────────────────────────────────────
+  function editThreat(id) {
+    const t = threats.find(x => x.id === id);
+    if (!t) return;
+    editId = id;
+    document.getElementById('f-name').value     = t.name;
+    document.getElementById('f-severity').value = t.severity;
+    document.getElementById('f-type').value     = t.type;
+    document.getElementById('f-desc').value     = t.description || '';
+    document.getElementById('f-system').value   = t.system || '';
+    document.getElementById('f-status').value   = t.status;
+    document.getElementById('f-cve').value      = t.cve || '';
+    document.getElementById('edit-indicator').classList.remove('hidden');
+    document.getElementById('form-buttons-create').classList.add('hidden');
+    document.getElementById('form-buttons-edit').classList.remove('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function updateThreat() {
+    if (!editId) return;
+    const name = document.getElementById('f-name').value.trim();
+    if (!name) { showToast('Vyplňte název hrozby', 'error'); return; }
+
+    const { error } = await sb.from('threats').update({
+      name,
+      severity:    document.getElementById('f-severity').value,
+      type:        document.getElementById('f-type').value,
+      description: document.getElementById('f-desc').value.trim(),
+      system:      document.getElementById('f-system').value.trim(),
+      status:      document.getElementById('f-status').value,
+      cve:         document.getElementById('f-cve').value.trim()
+    }).eq('id', editId);
+
+    if (error) { showToast('Chyba při ukládání', 'error'); console.error(error); return; }
+    showToast('Hrozba aktualizována', 'success');
+    resetForm();
+    await loadData();
+  }
+
+  function cancelEdit() { resetForm(); }
+
+  // ── DELETE ─────────────────────────────────────────────────────
+  function deleteThreat(id) {
+    const t = threats.find(x => x.id === id);
+    deleteId = id;
+    document.getElementById('delete-name').textContent = t ? t.name : id;
+    document.getElementById('delete-modal').classList.remove('hidden');
+  }
+
+  function closeDeleteModal() {
+    document.getElementById('delete-modal').classList.add('hidden');
+    deleteId = null;
+  }
+
+  async function confirmDelete() {
+    if (!deleteId) return;
+    const { error } = await sb.from('threats').delete().eq('id', deleteId);
+    if (error) { showToast('Chyba při mazání', 'error'); return; }
+    showToast('Hrozba smazána', 'error');
+    closeDeleteModal();
+    await loadData();
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────
+  function resetForm() {
+    document.getElementById('f-name').value     = '';
+    document.getElementById('f-severity').value = 'STŘEDNÍ';
+    document.getElementById('f-type').value     = 'Malware';
+    document.getElementById('f-desc').value     = '';
+    document.getElementById('f-system').value   = '';
+    document.getElementById('f-status').value   = 'Aktivní';
+    document.getElementById('f-cve').value      = '';
+    editId = null;
+    document.getElementById('edit-indicator').classList.add('hidden');
+    document.getElementById('form-buttons-create').classList.remove('hidden');
+    document.getElementById('form-buttons-edit').classList.add('hidden');
+  }
+
+  function updateStats() {
+    const critical = threats.filter(t => t.severity === 'KRITICKÁ').length;
+    const high     = threats.filter(t => t.severity === 'VYSOKÁ').length;
+    document.getElementById('stat-critical').textContent = critical + ' KRITICKÉ';
+    document.getElementById('stat-high').textContent     = high    + ' VYSOKÉ';
+    document.getElementById('stat-total').textContent    = threats.length + ' CELKEM';
+  }
+
+  function esc(s) {
+    return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  let toastTimer;
+  function showToast(msg, type='') {
+    clearTimeout(toastTimer);
+    document.querySelector('.toast')?.remove();
+    const t = document.createElement('div');
+    t.className = 'toast ' + type;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    toastTimer = setTimeout(() => t.remove(), 3000);
+  }
+
+  // ── Start ──────────────────────────────────────────────────────
+  loadData();
+</script>
+</body>
+</html>
